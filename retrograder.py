@@ -1,86 +1,85 @@
-# mercury_retro_bot.py
-"""
-Mercury Retrograde Discord Bot
+"""retrograder.py – Mercury Retrograde Discord Bot
+Checks https://ismercuryinretrograde.com/ once a day and posts the result to a
+specified Discord channel.  Rename this file however you like, but the repo is
+called **retrograder**, so we keep the filename consistent.
 
-Daily checks https://ismercuryinretrograde.com/ and posts the answer
-to a specific Discord channel.
+The bot does two things:
+  • Replies to the command  !mercury  (or  /mercury  if you add an app command)
+  • Posts the day’s status automatically at 14:00 UTC every day
 
-Quick‑start
------------
-1. python -m pip install discord.py aiohttp
-2. export DISCORD_TOKEN="your bot token"
-   export CHANNEL_ID="123456789012345678"   # target text channel ID
-3. python mercury_retro_bot.py
-
-The bot will post once per day at 14:00 UTC and responds to !mercury.
-Edit the `POST_TIME_UTC` below if you want a different schedule.
+Dependencies (see requirements.txt):
+  discord.py  |  aiohttp
 """
 
 import os
-import datetime
 import asyncio
+import datetime
+
 import aiohttp
 import discord
 from discord.ext import commands, tasks
 
-# === Config ===
-TOKEN = os.getenv("DISCORD_TOKEN")
+
+TOKEN      = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
-POST_TIME_UTC = datetime.time(hour=14, minute=0, tzinfo=datetime.timezone.utc)
+POST_TIME  = datetime.time(hour=14, minute=0, tzinfo=datetime.timezone.utc)
 
 intents = discord.Intents.default()
+
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
-async def fetch_retrograde_status(session: aiohttp.ClientSession) -> str:
-    """Grab the first word from ismercuryinretrograde.com ('Yes' or 'No')."""
-    url = "https://ismercuryinretrograde.com/"
-    async with session.get(url) as resp:
-        text = await resp.text()
-        return text.strip().split()[0]
+async def fetch_status(session: aiohttp.ClientSession) -> str:
+    """Grab the single‑word answer (Yes/No) from ismercuryinretrograde.com"""
+    async with session.get("https://ismercuryinretrograde.com/") as resp:
+        text = (await resp.text()).strip()
+        return text.split()[0]  # "Yes" or "No"
 
 
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user} ({bot.user.id})")
+    print(f"[retrograder] Logged in as {bot.user} (ID: {bot.user.id})")
     if not daily_post.is_running():
         daily_post.start()
 
 
-@tasks.loop(time=POST_TIME_UTC)
+@tasks.loop(time=POST_TIME)
 async def daily_post():
     channel = bot.get_channel(CHANNEL_ID)
     if channel is None:
-        print(f"Channel {CHANNEL_ID} not found.")
+        print("[retrograder] ERROR: Channel not found – check CHANNEL_ID")
         return
 
     async with aiohttp.ClientSession() as session:
-        status = await fetch_retrograde_status(session)
+        status = await fetch_status(session)
 
-    today = datetime.datetime.now(datetime.timezone.utc).strftime("%Y‑%m‑%d")
+    today = datetime.datetime.utcnow().date()
     if status.lower().startswith("yes"):
-        message = f"🌌 Heads up! Mercury **is** in retrograde as of {today}. Buckle up. 🚀"
+        msg = f"🚨 Heads up! Mercury **is** in retrograde – {today}."
     else:
-        message = f"All good! Mercury is **not** in retrograde as of {today}. Chill. 😎"
+        msg = f"✅ All clear – Mercury is **not** in retrograde – {today}."
 
-    await channel.send(message)
+    await channel.send(msg)
+    print(f"[retrograder] Posted daily status: {msg}")
 
 
-@bot.command(name="mercury", help="Manually check Mercury retrograde status.")
+@bot.command(name="mercury")
 async def mercury_cmd(ctx: commands.Context):
+    """Manual check command: !mercury"""
     async with aiohttp.ClientSession() as session:
-        status = await fetch_retrograde_status(session)
-
-    if status.lower().startswith("yes"):
-        await ctx.send("Yep, Mercury's in retrograde. Brace yourself.")
-    else:
-        await ctx.send("Nope, Mercury's behaving. We're fine.")
+        status = await fetch_status(session)
+    reply = (
+        "Yep, retrograde. Brace yourself." if status.lower().startswith("yes")
+        else "Nope, Mercury’s behaving. We’re fine."
+    )
+    await ctx.send(reply)
 
 
 if __name__ == "__main__":
     if not TOKEN or CHANNEL_ID == 0:
-        raise RuntimeError(
-            "Set DISCORD_TOKEN and CHANNEL_ID environment variables before running."
-        )
+        raise RuntimeError("Set DISCORD_TOKEN and CHANNEL_ID environment variables.")
 
-    bot.run(TOKEN)
+    try:
+        bot.run(TOKEN)
+    except KeyboardInterrupt:
+        print("[retrograder] Shutting down…")
