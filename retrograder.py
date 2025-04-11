@@ -25,6 +25,7 @@ CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 POST_TIME  = datetime.time(hour=14, minute=0, tzinfo=datetime.timezone.utc)
 
 intents = discord.Intents.default()
+intents.message_content = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -69,8 +70,8 @@ async def mercury_cmd(ctx: commands.Context):
     async with aiohttp.ClientSession() as session:
         status = await fetch_status(session)
     reply = (
-        "Yep, retrograde. Brace yourself." if status.lower().startswith("yes")
-        else "Nope, Mercury’s behaving. We’re fine."
+        "Fuck. Yeah, sorry, it's retrograde today. Stay inside, turn off your phone." if status.lower().startswith("yes")
+        else "Mercury's fine today, My Dude. Blame something else."
     )
     await ctx.send(reply)
 
