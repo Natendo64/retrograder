@@ -26,6 +26,7 @@ POST_TIME  = datetime.time(hour=14, minute=0, tzinfo=datetime.timezone.utc)
 
 intents = discord.Intents.default()
 intents.message_content = True
+intents.guilds = True
 print("DEBUG ‑ message_content =", intents.message_content)
 
 
