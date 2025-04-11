@@ -1,0 +1,28 @@
+name: poke-railway
+
+on:
+  schedule:
+    - cron:  '0 3 * * *'   # every day at 03:00 UTC
+  workflow_dispatch:       # lets you run it on demand
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Set fake identity for the commit
+      - run: |
+          git config user.name  "railway-keepalive-bot"
+          git config user.email "bot@example.com"
+
+      # Append timestamp to a junk file (creates it if missing)
+      - run: |
+          echo "poke $(date -u)" >> keepalive.txt
+          git add keepalive.txt
+          git commit -m "keep Railway alive" || echo "nothing to commit"
+
+      # Push back using the built‑in GITHUB_TOKEN
+      - run: git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
