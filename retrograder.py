@@ -37,15 +37,17 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 API_URL = "https://mercuryretrogradeapi.com?format=json"
 
 async def fetch_status(session: aiohttp.ClientSession) -> str:
-    """Return 'Yes' or 'No' using a reliable JSON API."""
+    """Return 'Yes', 'No', or 'Unknown' from a reliable JSON API."""
     try:
         async with session.get(API_URL, timeout=aiohttp.ClientTimeout(total=5)) as resp:
             data = await resp.json()
             return "Yes" if data.get("is_retrograde") else "No"
     except Exception as e:
-        # network hiccup, return 'Unknown' so the bot can reply gracefully
-        print(f"[retrograder] WARN: API fetch failed: {e}")
+        import traceback
+        print("[retrograder] WARN: API fetch failed:")
+        traceback.print_exc()
         return "Unknown"
+
 
 
 
@@ -69,13 +71,13 @@ async def daily_post():
     today = datetime.datetime.utcnow().date()
     if status == "Unknown":
         reply = "🤷‍♂️ Can’t reach the retrograde site right now—try again later."
-    elif status == "true":
+    elif status == "Yes":
         reply = "🚨 Yep, Mercury **is** in retrograde. Duck and cover."
     else:
         reply = "✅ All clear—Mercury isn’t in retrograde today."
 
-    await channel.send(msg)
-    print(f"[retrograder] Posted daily status: {msg}")
+    await channel.send(reply)
+    print(f"[retrograder] Posted daily status: {reply}")
 
 
 @bot.command(name="mercury")
@@ -85,7 +87,7 @@ async def mercury_cmd(ctx: commands.Context):
         status = await fetch_status(session)
         if status == "Unknown":
             reply = "🤷‍♂️ Can’t reach the retrograde site right now—try again later."
-        elif status == "true":
+        elif status == "Yes":
             reply = "🚨 Fuck. Yeah, sorry, Mercury's retrograde today. Stay inside, turn off your phone."
         else:
             reply = "✅ Mercury's fine today, My Dude. Blame something else."
