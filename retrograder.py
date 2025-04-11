@@ -24,6 +24,7 @@ TOKEN      = os.getenv("DISCORD_TOKEN")
 CHANNEL_ID = int(os.getenv("CHANNEL_ID", "0"))
 POST_TIME  = datetime.time(hour=14, minute=0, tzinfo=datetime.timezone.utc)
 
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
@@ -33,11 +34,19 @@ print("DEBUG ‑ message_content =", intents.message_content)
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 
+API_URL = "https://mercuryretrogradeapi.com?format=json"
+
 async def fetch_status(session: aiohttp.ClientSession) -> str:
-    """Grab the single‑word answer (Yes/No) from ismercuryinretrograde.com"""
-    async with session.get("https://ismercuryinretrograde.com/") as resp:
-        text = (await resp.text()).strip()
-        return text.split()[0]  # "Yes" or "No"
+    """Return 'Yes' or 'No' using a reliable JSON API."""
+    try:
+        async with session.get(API_URL, timeout=aiohttp.ClientTimeout(total=5)) as resp:
+            data = await resp.json()
+            return "Yes" if data.get("is_retrograde") else "No"
+    except Exception as e:
+        # network hiccup, return 'Unknown' so the bot can reply gracefully
+        print(f"[retrograder] WARN: API fetch failed: {e}")
+        return "Unknown"
+
 
 
 @bot.event
@@ -58,10 +67,12 @@ async def daily_post():
         status = await fetch_status(session)
 
     today = datetime.datetime.utcnow().date()
-    if status.lower().startswith("yes"):
-        msg = f"🚨 Heads up! Mercury **is** in retrograde – {today}."
+    if status == "Unknown":
+        reply = "🤷‍♂️ Can’t reach the retrograde site right now—try again later."
+    elif status == "true":
+        reply = "🚨 Yep, Mercury **is** in retrograde. Duck and cover."
     else:
-        msg = f"✅ All clear – Mercury is **not** in retrograde – {today}."
+        reply = "✅ All clear—Mercury isn’t in retrograde today."
 
     await channel.send(msg)
     print(f"[retrograder] Posted daily status: {msg}")
@@ -72,10 +83,12 @@ async def mercury_cmd(ctx: commands.Context):
     """Manual check command: !mercury"""
     async with aiohttp.ClientSession() as session:
         status = await fetch_status(session)
-    reply = (
-        "Fuck. Yeah, sorry, it's retrograde today. Stay inside, turn off your phone." if status.lower().startswith("yes")
-        else "Mercury's fine today, My Dude. Blame something else."
-    )
+        if status == "Unknown":
+            reply = "🤷‍♂️ Can’t reach the retrograde site right now—try again later."
+        elif status == "true":
+            reply = "🚨 Fuck. Yeah, sorry, Mercury's retrograde today. Stay inside, turn off your phone."
+        else:
+            reply = "✅ Mercury's fine today, My Dude. Blame something else."
     await ctx.send(reply)
 
 
